@@ -6,6 +6,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.support.ui import WebDriverWait
 
 EMAIL_ADDRESS = os.environ['EMAIL_ADDRESS']
 EMAIL_PASSWORD = os.environ['EMAIL_PASSWORD']
@@ -50,7 +51,17 @@ def check_disponibilite():
     except NoSuchElementException:
         print("✅ Aucun pop-up cookies détecté", flush=True)
 
+    # ⏳ Attente réelle que le contenu se charge
     screenshot_path = "page_vue_par_le_bot.png"
+    try:
+        print("⏳ Attente de la zone de tickets (max 10s)...", flush=True)
+        WebDriverWait(driver, 10).until(
+            lambda d: d.find_elements(By.CLASS_NAME, "ticket-card") or d.find_elements(By.TAG_NAME, "h5")
+        )
+    except:
+        print("⚠️ Temps d'attente dépassé — screenshot forcé", flush=True)
+
+    # 🖼️ Capture de la page réelle visible
     driver.save_screenshot(screenshot_path)
 
     try:
