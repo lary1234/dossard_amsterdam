@@ -5,8 +5,6 @@ from email.message import EmailMessage
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
-from selenium.webdriver.support.ui import WebDriverWait
 
 EMAIL_ADDRESS = os.environ['EMAIL_ADDRESS']
 EMAIL_PASSWORD = os.environ['EMAIL_PASSWORD']
@@ -39,63 +37,37 @@ def check_disponibilite():
     options.add_argument('--no-sandbox')
 
     driver = webdriver.Chrome(options=options)
-    driver.set_window_size(1920, 3000)  # grande hauteur pour scroll complet
+    driver.set_window_size(1920, 3000)
     driver.get("https://atleta.cc/e/nhIV3rcY9oXV/resale")
     time.sleep(5)
 
-    # 🍪 Gérer les iframes et plusieurs textes pour "Accepter"
+    # 🍪 Clic "Accepter" s'il existe
     try:
-        print("🔍 Recherche de pop-up cookies via iframes...", flush=True)
-        WebDriverWait(driver, 5).until(lambda d: d.find_elements(By.TAG_NAME, "iframe"))
-        for iframe in driver.find_elements(By.TAG_NAME, "iframe"):
-            driver.switch_to.frame(iframe)
-            try:
-                boutons = driver.find_elements(By.TAG_NAME, "button")
-                for bouton in boutons:
-                    if any(txt in bouton.text.lower() for txt in ["accept", "accepter", "ok", "i agree"]):
-                        bouton.click()
-                        print(f"🍪 Bouton '{bouton.text}' cliqué dans l'iframe", flush=True)
-                        time.sleep(2)
-                        break
-                driver.switch_to.default_content()
-            except:
-                driver.switch_to.default_content()
-                continue
-        driver.switch_to.default_content()
+        bouton = driver.find_element(By.XPATH, "//button[.//strong[contains(text(), 'Accepter')]]")
+        bouton.click()
+        print("🍪 Bouton 'Accepter' cliqué", flush=True)
+        time.sleep(2)
     except Exception as e:
-        print("✅ Aucun pop-up cookies interactif trouvé ou erreur :", e, flush=True)
+        print("⚠️ Bouton 'Accepter' introuvable :", e, flush=True)
 
-    # ⏳ Attente du contenu réel
+    # 📸 Capture d’écran
     screenshot_path = "page_vue_par_le_bot.png"
-    try:
-        print("⏳ Attente de la zone de tickets (max 10s)...", flush=True)
-        WebDriverWait(driver, 10).until(
-            lambda d: d.find_elements(By.CLASS_NAME, "ticket-card") or d.find_elements(By.TAG_NAME, "h5")
-        )
-    except:
-        print("⚠️ Temps d'attente dépassé — screenshot forcé", flush=True)
-
-    # 🖼️ Capture plein écran
     driver.save_screenshot(screenshot_path)
 
+    # 🔍 Recherche du message d'absence
     try:
-        ticket_elements = driver.find_elements(By.CLASS_NAME, "ticket-card")
-        if len(ticket_elements) > 0:
-            print(f"🎯 {len(ticket_elements)} ticket(s) détecté(s) !", flush=True)
-            driver.quit()
-            return True, screenshot_path
-        else:
-            print("⛔ Aucun ticket détecté (aucune carte trouvée)", flush=True)
-            driver.quit()
-            return False, screenshot_path
-    except Exception as e:
-        print("⚠️ Erreur pendant la vérification :", e, flush=True)
+        message = driver.find_element(By.XPATH, "//*[contains(text(), \"Il n'y a actuellement aucun ticket à vendre\")]")
+        print("⛔ Message d'absence trouvé → aucun ticket", flush=True)
         driver.quit()
         return False, screenshot_path
+    except:
+        print("🎯 Message d'absence NON trouvé → POSSIBLE ticket !", flush=True)
+        driver.quit()
+        return True, screenshot_path
 
 if __name__ == "__main__":
     dispo, screenshot = check_disponibilite()
-    envoyer_mail("🚀 Bot Selenium lancé", "Le bot Selenium est en ligne et surveille les dossards.", screenshot)
+    envoyer_mail("🚀 Bot lancé", "Le bot est en ligne et surveille les dossards.", screenshot)
 
     alert_sent = False
 
