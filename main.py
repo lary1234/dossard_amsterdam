@@ -41,13 +41,13 @@ def check_dossards():
         response = requests.get("https://atleta.cc/e/nhIV3rcY9oXV/resale", headers=headers)
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # Trouve toutes les balises span contenant "tickets available"
-        spans = soup.find_all("span")
-        for span in spans:
-            text = span.get_text(strip=True).lower()
+        # On récupère toutes les balises qui contiennent "tickets available"
+        all_elements = soup.find_all(True)  # Toutes les balises HTML
+
+        for element in all_elements:
+            text = element.get_text(strip=True).lower()
             if "tickets available" in text:
                 print(f"ℹ️ Texte trouvé : \"{text}\"", flush=True)
-                # Essaye de récupérer le nombre au début
                 try:
                     nb_tickets = int(text.split(" ")[0])
                     print(f"🎫 Tickets détectés : {nb_tickets}", flush=True)
@@ -58,10 +58,14 @@ def check_dossards():
                         print("⛔ Aucun ticket disponible.", flush=True)
                         return False
                 except ValueError:
-                    print("❌ Impossible d'extraire le nombre de tickets.", flush=True)
+                    print("❌ Nombre de tickets non détectable dans :", text, flush=True)
                     return False
 
-        print("⚠️ Aucun texte 'tickets available' trouvé dans les balises span.", flush=True)
+        print("⚠️ Aucun élément contenant 'tickets available' trouvé dans toute la page HTML.", flush=True)
+        return False
+
+    except Exception as e:
+        print("⚠️ Erreur pendant la vérification :", e, flush=True)
         return False
 
     except Exception as e:
