@@ -39,29 +39,33 @@ def check_disponibilite():
     options.add_argument('--no-sandbox')
 
     driver = webdriver.Chrome(options=options)
+    driver.set_window_size(1920, 3000)  # grande hauteur pour scroll complet
     driver.get("https://atleta.cc/e/nhIV3rcY9oXV/resale")
     time.sleep(5)
 
-    # 🍪 Tentative de gestion d'un pop-up cookies via iframe
+    # 🍪 Gérer les iframes et plusieurs textes pour "Accepter"
     try:
-        print("🔍 Recherche d'une iframe contenant le bouton cookies...", flush=True)
+        print("🔍 Recherche de pop-up cookies via iframes...", flush=True)
         WebDriverWait(driver, 5).until(lambda d: d.find_elements(By.TAG_NAME, "iframe"))
         for iframe in driver.find_elements(By.TAG_NAME, "iframe"):
             driver.switch_to.frame(iframe)
             try:
-                accept_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Accept')]")
-                accept_button.click()
-                print("🍪 Pop-up cookies accepté dans l'iframe", flush=True)
-                time.sleep(1)
-                break
-            except NoSuchElementException:
+                boutons = driver.find_elements(By.TAG_NAME, "button")
+                for bouton in boutons:
+                    if any(txt in bouton.text.lower() for txt in ["accept", "accepter", "ok", "i agree"]):
+                        bouton.click()
+                        print(f"🍪 Bouton '{bouton.text}' cliqué dans l'iframe", flush=True)
+                        time.sleep(2)
+                        break
+                driver.switch_to.default_content()
+            except:
                 driver.switch_to.default_content()
                 continue
         driver.switch_to.default_content()
     except Exception as e:
         print("✅ Aucun pop-up cookies interactif trouvé ou erreur :", e, flush=True)
 
-    # ⏳ Attente réelle du contenu
+    # ⏳ Attente du contenu réel
     screenshot_path = "page_vue_par_le_bot.png"
     try:
         print("⏳ Attente de la zone de tickets (max 10s)...", flush=True)
@@ -71,6 +75,7 @@ def check_disponibilite():
     except:
         print("⚠️ Temps d'attente dépassé — screenshot forcé", flush=True)
 
+    # 🖼️ Capture plein écran
     driver.save_screenshot(screenshot_path)
 
     try:
