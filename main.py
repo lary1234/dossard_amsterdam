@@ -1,9 +1,7 @@
 import os
 import time
-import threading
 import smtplib
 from email.message import EmailMessage
-from flask import Flask, send_file
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -15,18 +13,20 @@ from selenium.webdriver.support import expected_conditions as EC
 #################################
 EMAIL_ADDRESS = os.environ.get('EMAIL_ADDRESS', 'ton.email@gmail.com')
 EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD', 'ton_mdp_application')
-
-# URL à surveiller
 CHECK_URL = "https://atleta.cc/e/nhIV3rcY9oXV/resale"
 
-# Chemin du screenshot
-SCREENSHOT_PATH = "page_vue_par_le_bot.png"
+# Chemins pour les captures d'écran de debug
+SCREENSHOT_STEP1 = "step1_before_cookies.png"
+SCREENSHOT_STEP2 = "step2_after_cookies.png"
+SCREENSHOT_FINAL = "page_vue_par_le_bot.png"
 
-# Intervalle de capture (30 secondes)
-CAPTURE_INTERVAL = 30
-
-# Intervalle pour envoi d'email si un ticket est détecté (ici 60 secondes maximum)
-MAIL_INTERVAL = 60
+# Temps d'attente (en secondes)
+INITIAL_WAIT = 10       # pour le chargement initial de la page
+COOKIE_WAIT = 10        # attente max pour que le bouton soit cliquable
+POST_CLICK_WAIT = 5     # temps d'attente après le clic pour que la page se stabilise
+SCROLL_WAIT = 3         # temps pour que le défilement se fasse
+CAPTURE_INTERVAL = 30   # intervalle entre les vérifications
+MAIL_INTERVAL = 60      # intervalle d'envoi d'email maximal
 
 #################################
 # FONCTIONS UTILITAIRES
@@ -38,110 +38,135 @@ def envoyer_mail(subject, content, attachment_path=None):
     msg['From'] = EMAIL_ADDRESS
     msg['To'] = EMAIL_ADDRESS
     msg.set_content(content)
-
     if attachment_path and os.path.exists(attachment_path):
-        with open(attachment_path, 'rb') as f:
+        with open(attachment_path, "rb") as f:
             file_data = f.read()
-            msg.add_attachment(file_data, maintype='image', subtype='png', filename=os.path.basename(attachment_path))
+            msg.add_attachment(file_data, maintype="image", subtype="png", filename=os.path.basename(attachment_path))
     try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
             smtp.send_message(msg)
         print("✅ Mail envoyé", flush=True)
     except Exception as e:
-        print(f"❌ Erreur mail : {e}", flush=True)
+        print(f"❌ Erreur lors de l'envoi du mail : {e}", flush=True)
+
+def click_cookie_button(driver):
+    """
+    Essaye de cliquer sur un bouton de cookies en testant plusieurs variantes.
+    """
+    # Liste des XPATH possibles pour le bouton de consentement
+    xpath_candidates = [
+        "//button[.//strong[contains(translate(text(), 'ACCEPTER', 'accepter'),'accepter')]]",
+        "//button[contains(translate(text(), 'ACCEPTER', 'accepter'),'accepter')]",
+        "//button[contains(translate(text(), 'ACCEPT', 'accept'),'accept')]",
+        "//button[contains(translate(text(), 'OK', 'ok'),'ok')]",
+        "//button[contains(translate(text(), \"J'accepte\", \"j'accepte\"),'j\'accepte')]",
+        "//button[contains(translate(text(), 'I agree', 'i agree'),'i agree')]"
+    ]
+    
+    for xp in xpath_candidates:
+        try:
+            # On attend que le bouton soit cliquable
+            button = WebDriverWait(driver, COOKIE_WAIT).until(EC.element_to_be_clickable((By.XPATH, xp)))
+            button.click()
+            print(f"🍪 Bouton cliqué via xpath: {xp}", flush=True)
+            # On attend que le bouton ne soit plus visible
+            WebDriverWait(driver, COOKIE_WAIT).until(EC.invisibility_of_element_located((By.XPATH, xp)))
+            print("🍪 Bouton de cookies disparu.", flush=True)
+            return True
+        except Exception as e:
+            # Si on n'a pas pu cliquer avec ce xpath, on passe au suivant
+            print(f"⚠️ Tentative avec xpath {xp} échouée : {e}", flush=True)
+    return False
+
+def scroll_page(driver):
+    """
+    Effectue un scroll de la page jusqu'en bas pour forcer le chargement complet.
+    """
+    try:
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        print("🔄 Page scrollée vers le bas.", flush=True)
+    except Exception as e:
+        print(f"⚠️ Erreur lors du scroll : {e}", flush=True)
 
 def check_disponibilite():
-    # Configuration de Selenium en mode headless
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--no-sandbox")
     
-    # On peut éventuellement ajouter ici des préférences pour les cookies
-    # Cependant, le site semble utiliser un composant custom, nous tenterons toujours le clic.
-    
     driver = webdriver.Chrome(options=options)
     driver.set_window_size(1920, 3000)
     driver.get(CHECK_URL)
     
-    # Attente de chargement de la page
-    time.sleep(5)
-
-    # ⏱️ Essai de clic explicite sur le bouton "Accepter"
-    try:
-        accept_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//button[.//strong[contains(text(),'Accepter')]]"))
-        )
-        accept_button.click()
-        print("🍪 Bouton 'Accepter' cliqué avec succès", flush=True)
-        WebDriverWait(driver, 10).until(
-            EC.invisibility_of_element_located((By.XPATH, "//button[.//strong[contains(text(),'Accepter')]]"))
-        )
-        print("🍪 Bouton 'Accepter' a disparu, pop-up cookies enlevé.", flush=True)
-    except Exception as e:
-        print(f"⚠️ Bouton 'Accepter' introuvable ou non cliquable : {e}", flush=True)
+    # Attendre que la page soit complètement chargée
+    time.sleep(INITIAL_WAIT)
     
-    # Attendre quelques secondes supplémentaires pour que la page se stabilise (et éventuellement pour que le challenge Cloudflare se termine)
-    time.sleep(3)
+    # Capture d'écran avant interaction
+    driver.save_screenshot(SCREENSHOT_STEP1)
+    print("📸 Capture STEP 1 (avant cookies) sauvegardée.", flush=True)
     
-    # Capture d'écran pour vérification
-    driver.save_screenshot(SCREENSHOT_PATH)
+    # Essayer de cliquer sur le bouton cookies (si présent)
+    click_cookie_button(driver)
     
-    # Ici on peut ajouter d'autres vérifications visuelles
-    # Par exemple, on cherche des éléments ayant la classe "ticket-card"
-    ticket_present = False
+    # Attendre que la page se stabilise après le clic
+    time.sleep(POST_CLICK_WAIT)
+    
+    # Scroll de la page pour charger tout le contenu dynamique
+    scroll_page(driver)
+    time.sleep(SCROLL_WAIT)
+    
+    # Capture d'écran finale
+    driver.save_screenshot(SCREENSHOT_FINAL)
+    print("📸 Capture finale sauvegardée.", flush=True)
+    
+    # Vérification de la présence d'un bloc ticket via la classe "ticket-card"
+    ticket_detected = False
     try:
         tickets = driver.find_elements(By.CLASS_NAME, "ticket-card")
         if tickets and len(tickets) > 0:
-            ticket_present = True
+            ticket_detected = True
             print(f"🎯 {len(tickets)} ticket(s) détecté(s) visuellement !", flush=True)
         else:
-            print("⛔ Aucun ticket détecté (aucune carte trouvée)", flush=True)
+            print("⛔ Aucun ticket détecté (aucune carte trouvée).", flush=True)
     except Exception as e:
         print(f"⚠️ Erreur lors de la recherche des tickets : {e}", flush=True)
     
     driver.quit()
-    return ticket_present
+    return ticket_detected, SCREENSHOT_FINAL
 
 #################################
-# FLASK APP POUR VISUALISER LE SCREENSHOT
+# APPLICATION FLASK (optionnel)
 #################################
+from flask import Flask, send_file
 app = Flask(__name__)
 
 @app.route("/screenshot")
 def screenshot():
-    """Retourne la dernière capture d'écran."""
-    if os.path.exists(SCREENSHOT_PATH):
-        return send_file(SCREENSHOT_PATH, mimetype="image/png")
+    if os.path.exists(SCREENSHOT_FINAL):
+        return send_file(SCREENSHOT_FINAL, mimetype="image/png")
     else:
-        return "Aucune capture disponible.", 404
+        return "Pas de capture disponible.", 404
 
 #################################
-# THREAD DE CAPTURE
-#################################
-def loop_capture():
-    last_ticket_found = False
-    last_mail_sent = 0
-    while True:
-        ticket_found = check_disponibilite()
-        if ticket_found and not last_ticket_found:
-            now = time.time()
-            if (now - last_mail_sent) > MAIL_INTERVAL:
-                envoyer_mail("🎟️ Dossard dispo", f"Un ticket est peut-être dispo sur {CHECK_URL}", SCREENSHOT_PATH)
-                last_mail_sent = now
-            last_ticket_found = True
-        elif not ticket_found and last_ticket_found:
-            last_ticket_found = False
-        time.sleep(CAPTURE_INTERVAL)
-
-#################################
-# LANCEMENT DE L'APP
+# LANCEMENT DE LA SURVEILLANCE
 #################################
 if __name__ == "__main__":
-    # Lancer le thread de capture
-    t = threading.Thread(target=loop_capture, daemon=True)
-    t.start()
-
-    # Lancer le serveur Flask sur le port 5000 pour avoir un URL public (si déployé sur Railway)
-    app.run(host="0.0.0.0", port=5000)
+    # Envoi d'un email de démarrage avec la capture finale
+    dispo, screenshot_file = check_disponibilite()
+    envoyer_mail("🚀 Bot lancé", "Le bot est en ligne et surveille les dossards.", screenshot_file)
+    
+    alert_sent = False
+    last_mail_time = 0
+    
+    # Lancement d'un thread pour la surveillance continue (synchronisé dans ce cas)
+    while True:
+        dispo, screenshot_file = check_disponibilite()
+        now = time.time()
+        if dispo and not alert_sent and (now - last_mail_time > MAIL_INTERVAL):
+            envoyer_mail("🎟️ Dossard dispo", f"Un ticket est peut-être dispo sur {CHECK_URL}", screenshot_file)
+            alert_sent = True
+            last_mail_time = now
+        elif not dispo and alert_sent:
+            alert_sent = False
+        time.sleep(CAPTURE_INTERVAL)
