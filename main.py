@@ -37,15 +37,21 @@ def check_disponibilite():
     time.sleep(5)  # attendre le chargement JS
 
     try:
-        message = driver.find_element(By.XPATH, "//*[contains(text(), 'no tickets for sale')]")
-        print("⛔ Aucun ticket dispo (message détecté)", flush=True)
-        dispo = False
-    except NoSuchElementException:
-        print("🎯 POSSIBLE DISPONIBILITÉ ! (message non trouvé)", flush=True)
-        dispo = True
+        # Nouvelle stratégie : chercher un bloc ticket réel visible uniquement en cas de dispo
+        ticket_elements = driver.find_elements(By.CLASS_NAME, "ticket-card")
+        if len(ticket_elements) > 0:
+            print(f"🎯 {len(ticket_elements)} ticket(s) détecté(s) !", flush=True)
+            driver.quit()
+            return True
+        else:
+            print("⛔ Aucun ticket détecté (aucune carte trouvée)", flush=True)
+            driver.quit()
+            return False
 
-    driver.quit()
-    return dispo
+    except Exception as e:
+        print("⚠️ Erreur pendant la vérification :", e, flush=True)
+        driver.quit()
+        return False
 
 if __name__ == "__main__":
     envoyer_mail("🚀 Bot Selenium lancé", "Le bot Selenium est en ligne et surveille les dossards.")
