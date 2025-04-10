@@ -35,38 +35,21 @@ def envoyer_mail():
         print("❌ Erreur d'envoi de mail :", e, flush=True)
 
 def check_dossards():
-    print("🔍 Début de vérification des dossards...", flush=True)
+    print("🔍 Début de vérification des dossards (structure HTML)...", flush=True)
     try:
         headers = { "User-Agent": "Mozilla/5.0" }
         response = requests.get("https://atleta.cc/e/nhIV3rcY9oXV/resale", headers=headers)
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # On récupère toutes les balises qui contiennent "tickets available"
-        all_elements = soup.find_all(True)  # Toutes les balises HTML
+        # Rechercher le message "no tickets"
+        message = soup.find(string=lambda s: s and "there are currently no tickets for sale" in s.lower())
 
-        for element in all_elements:
-            text = element.get_text(strip=True).lower()
-            if "tickets available" in text:
-                print(f"ℹ️ Texte trouvé : \"{text}\"", flush=True)
-                try:
-                    nb_tickets = int(text.split(" ")[0])
-                    print(f"🎫 Tickets détectés : {nb_tickets}", flush=True)
-                    if nb_tickets > 0:
-                        print("🎯 DOSSARDS DISPONIBLES !", flush=True)
-                        return True
-                    else:
-                        print("⛔ Aucun ticket disponible.", flush=True)
-                        return False
-                except ValueError:
-                    print("❌ Nombre de tickets non détectable dans :", text, flush=True)
-                    return False
-
-        print("⚠️ Aucun élément contenant 'tickets available' trouvé dans toute la page HTML.", flush=True)
-        return False
-
-    except Exception as e:
-        print("⚠️ Erreur pendant la vérification :", e, flush=True)
-        return False
+        if message:
+            print("⛔ Message d'absence détecté → aucun ticket dispo.", flush=True)
+            return False
+        else:
+            print("🎯 Message d'absence NON trouvé → POSSIBLE DISPONIBILITÉ !", flush=True)
+            return True
 
     except Exception as e:
         print("⚠️ Erreur pendant la vérification :", e, flush=True)
