@@ -1,18 +1,18 @@
-# Bot de Surveillance de Dossards (Version légère)
+# Bot Dossard avec Flask (triche Render)
 
-Ce bot surveille la page Atleta et t'envoie un email dès qu'un dossard est disponible.
+Ce bot vérifie les dossards sur Atleta et envoie un mail quand un dossard est dispo.
 
-## Utilisation sur Render
+### ⚙️ Déploiement Render (gratuit) :
 
 1. Crée un repo GitHub avec ces fichiers.
-2. Va sur https://render.com > "New" > "Web Service" ou "Background Worker"
+2. Va sur https://render.com > New > Web Service.
 3. Configure :
-   - Build Command : `pip install -r requirements.txt`
-   - Start Command : `python main.py`
-4. Dans "Environment", ajoute :
-   - `EMAIL_ADDRESS` : ton Gmail
-   - `EMAIL_PASSWORD` : mot de passe d’application
+   - **Build Command** : `pip install -r requirements.txt`
+   - **Start Command** : `python main.py`
+4. Ajoute deux variables d'environnement :
+   - `EMAIL_ADDRESS` = ton Gmail
+   - `EMAIL_PASSWORD` = mot de passe d'application Gmail
 
-Le bot tourne en boucle et vérifie toutes les 60 secondes.
+### ✅ Bonus : un mini serveur Flask est lancé en fond pour "tromper" Render.
 
-**Avantage :** pas besoin de navigateur (Chrome, Selenium, etc.)
+Tu peux visiter `https://<ton-service>.onrender.com` pour vérifier que le bot tourne.
