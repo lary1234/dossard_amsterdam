@@ -36,24 +36,38 @@ def check_disponibilite():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--no-sandbox")
 
-    # ✅ Configuration pour toujours autoriser les cookies
-    prefs = {
-        "profile.default_content_setting_values.cookies": 1,
-        "profile.default_content_setting_values.third_party_cookies": 1,
-        "profile.cookie_controls_mode": 0,
-    }
-    options.add_experimental_option("prefs", prefs)
-
     driver = webdriver.Chrome(options=options)
     driver.set_window_size(1920, 3000)
     driver.get("https://atleta.cc/e/nhIV3rcY9oXV/resale")
     time.sleep(5)
 
-    # 🖼️ Screenshot
+    # 🍪 Tentative de clic sur tous les boutons d'acceptation
+    try:
+        elements = driver.find_elements(By.XPATH, "//*[self::button or self::div or self::span]")
+        keywords = ["accepter", "accept", "ok", "j'accepte", "i agree"]
+
+        clicked = False
+        for el in elements:
+            txt = el.text.strip().lower()
+            if any(kw in txt for kw in keywords):
+                try:
+                    el.click()
+                    print(f"🍪 Clic sur bouton cookie avec texte : '{el.text}'", flush=True)
+                    time.sleep(2)
+                    clicked = True
+                    break
+                except:
+                    continue
+        if not clicked:
+            print("🔍 Aucun bouton cookie détecté ou cliquable", flush=True)
+    except Exception as e:
+        print("⚠️ Erreur lors de la détection du pop-up cookie :", e, flush=True)
+
+    # 📸 Capture
     screenshot_path = "page_vue_par_le_bot.png"
     driver.save_screenshot(screenshot_path)
 
-    # 🔍 Vérification du message d'absence
+    # 🔍 Détection de l'absence du message d'indisponibilité
     try:
         driver.find_element(By.XPATH, "//*[contains(text(), \"Il n'y a actuellement aucun ticket à vendre\")]")
         print("⛔ Message d'absence détecté → aucun ticket", flush=True)
@@ -66,7 +80,7 @@ def check_disponibilite():
 
 if __name__ == "__main__":
     dispo, screenshot = check_disponibilite()
-    envoyer_mail("🚀 Bot lancé (mode cookies auto)", "Le bot est actif avec acceptation automatique des cookies.", screenshot)
+    envoyer_mail("🚀 Bot lancé (anti-cookie universel)", "Le bot est actif avec recherche automatique des boutons cookies.", screenshot)
 
     alert_sent = False
 
