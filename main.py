@@ -38,22 +38,20 @@ def envoyer_mail(subject, content):
 
 # ==== FONCTION DE VÉRIFICATION DES DOSSARDS ====
 def check_dossards():
-    print("🔍 Début de vérification des dossards (texte global)...", flush=True)
+    print("🔍 Vérification des dossards (structure HTML)...", flush=True)
     try:
         headers = { "User-Agent": "Mozilla/5.0" }
         response = requests.get("https://atleta.cc/e/nhIV3rcY9oXV/resale", headers=headers)
         soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Récupère tout le texte visible de la page
-        page_text = soup.get_text(separator=" ", strip=True).lower()
-        print("📝 (aperçu) Texte de la page :", page_text[:150], "...", flush=True)
 
-        # Si le message "no tickets for sale" est présent, aucun ticket n'est dispo.
-        if "no tickets for sale" in page_text:
-            print("⛔ Message 'no tickets for sale' détecté → aucun ticket dispo.", flush=True)
+        # Cherche un bloc spécifique avec un style ou une classe bien connue liée à l'absence
+        message_blocks = soup.find_all("div", string=lambda s: s and "no tickets for sale" in s.lower())
+
+        if message_blocks:
+            print("⛔ Bloc de message d'absence détecté → aucun ticket.", flush=True)
             return False
         else:
-            print("🎯 Message d'absence NON détecté → POSSIBLE DISPONIBILITÉ !", flush=True)
+            print("🎯 Bloc de message d'absence NON détecté → POSSIBLE TICKET !", flush=True)
             return True
 
     except Exception as e:
