@@ -40,14 +40,30 @@ def check_dossards():
         headers = { "User-Agent": "Mozilla/5.0" }
         response = requests.get("https://atleta.cc/e/nhIV3rcY9oXV/resale", headers=headers)
         soup = BeautifulSoup(response.text, 'html.parser')
-        page_text = soup.get_text().lower()
 
-        if "there are currently no tickets for sale" in page_text or "0 tickets available" in page_text:
-            print("⛔ Aucun ticket disponible pour le moment.", flush=True)
-            return False
-        else:
-            print("🎯 POSSIBLE TICKET DISPONIBLE – vérifier manuellement !", flush=True)
-            return True
+        # Trouve toutes les balises span contenant "tickets available"
+        spans = soup.find_all("span")
+        for span in spans:
+            text = span.get_text(strip=True).lower()
+            if "tickets available" in text:
+                print(f"ℹ️ Texte trouvé : \"{text}\"", flush=True)
+                # Essaye de récupérer le nombre au début
+                try:
+                    nb_tickets = int(text.split(" ")[0])
+                    print(f"🎫 Tickets détectés : {nb_tickets}", flush=True)
+                    if nb_tickets > 0:
+                        print("🎯 DOSSARDS DISPONIBLES !", flush=True)
+                        return True
+                    else:
+                        print("⛔ Aucun ticket disponible.", flush=True)
+                        return False
+                except ValueError:
+                    print("❌ Impossible d'extraire le nombre de tickets.", flush=True)
+                    return False
+
+        print("⚠️ Aucun texte 'tickets available' trouvé dans les balises span.", flush=True)
+        return False
+
     except Exception as e:
         print("⚠️ Erreur pendant la vérification :", e, flush=True)
         return False
