@@ -1,11 +1,9 @@
 import os
 import smtplib
-from email.message import EmailMessage
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 import time
+import requests
+from email.message import EmailMessage
+from bs4 import BeautifulSoup
 
 EMAIL_ADDRESS = os.environ['EMAIL_ADDRESS']
 EMAIL_PASSWORD = os.environ['EMAIL_PASSWORD']
@@ -21,24 +19,16 @@ def envoyer_mail():
         smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
         smtp.send_message(msg)
 
-options = webdriver.ChromeOptions()
-options.add_argument("--headless")
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
-
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-
 def check_dossards():
-    driver.get("https://atleta.cc/e/nhIV3rcY9oXV/resale")
-    time.sleep(3)
-
     try:
-        refresh_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Refresh')]")
-        refresh_button.click()
-        time.sleep(3)
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+        response = requests.get("https://atleta.cc/e/nhIV3rcY9oXV/resale", headers=headers)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        tickets = soup.find_all(class_='ticket-card')
 
-        ticket_texts = driver.find_elements(By.CLASS_NAME, "ticket-card")
-        for ticket in ticket_texts:
+        for ticket in tickets:
             if "Disponible" in ticket.text or "Available" in ticket.text:
                 print("DOSSARD DISPONIBLE !")
                 envoyer_mail()
@@ -46,11 +36,10 @@ def check_dossards():
         print("Pas de dossards.")
         return False
     except Exception as e:
-        print("Erreur :", e)
+        print("Erreur de récupération :", e)
         return False
 
 while True:
-    dispo = check_dossards()
-    if dispo:
+    if check_dossards():
         break
     time.sleep(60)
