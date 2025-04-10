@@ -14,7 +14,7 @@ def home():
     return "Bot is running!"
 
 def run_server():
-    print("🚀 Serveur Flask lancé sur le port 10000.")
+    print("🚀 Serveur Flask lancé sur le port 10000.", flush=True)
     app.run(host='0.0.0.0', port=10000)
 
 # ==== CONFIG MAIL ====
@@ -22,46 +22,45 @@ EMAIL_ADDRESS = os.environ['EMAIL_ADDRESS']
 EMAIL_PASSWORD = os.environ['EMAIL_PASSWORD']
 
 def envoyer_mail():
-    print("📤 Tentative d'envoi de l'e-mail...")
+    print("📤 Tentative d'envoi de l'e-mail...", flush=True)
     msg = EmailMessage()
     msg['Subject'] = "✅ TEST : Dossard dispo !"
     msg['From'] = EMAIL_ADDRESS
     msg['To'] = EMAIL_ADDRESS
-    msg.set_content("Ceci est un test. Si tu reçois ce mail, le bot fonctionne !")
+    msg.set_content("Un ou plusieurs dossards sont peut-être disponibles ici : https://atleta.cc/e/nhIV3rcY9oXV/resale")
     try:
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
             smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
             smtp.send_message(msg)
-        print("✅ Mail envoyé avec succès !")
+        print("✅ Mail envoyé avec succès !", flush=True)
     except Exception as e:
-        print("❌ Erreur d'envoi de mail :", e)
+        print("❌ Erreur d'envoi de mail :", e, flush=True)
 
 def check_dossards():
-    print("🔍 Début de vérification des dossards...")
+    print("🔍 Début de vérification des dossards...", flush=True)
     try:
         headers = { "User-Agent": "Mozilla/5.0" }
         response = requests.get("https://atleta.cc/e/nhIV3rcY9oXV/resale", headers=headers)
         soup = BeautifulSoup(response.text, 'html.parser')
-        tickets = soup.find_all(class_='ticket-card')
-        print(f"🔎 {len(tickets)} éléments trouvés avec 'ticket-card'.")
+        page_text = soup.get_text().lower()
 
-        for ticket in tickets:
-            if "Disponible" in ticket.text or "Available" in ticket.text:
-                print("🎯 DOSSARD DISPONIBLE !")
-                envoyer_mail()
-                return True
-        print("⛔ Pas de dossards.")
-        return False
+        # Vérifie s'il n'y a PAS de tickets
+        if "there are currently no tickets for sale" in page_text or "0 tickets available" in page_text:
+            print("⛔ Aucun ticket disponible pour le moment.", flush=True)
+            return False
+        else:
+            print("🎯 POSSIBLE TICKET DISPONIBLE – vérifier manuellement !", flush=True)
+            envoyer_mail()
+            return True
     except Exception as e:
-        print("⚠️ Erreur pendant le check :", e)
+        print("⚠️ Erreur pendant la vérification :", e, flush=True)
         return False
 
 # ==== LANCE LE SERVEUR + LE BOT EN PARALLÈLE ====
 if __name__ == '__main__':
     threading.Thread(target=run_server).start()
 
-    # Envoi de mail de test immédiat pour validation
-    print("💬 TEST : envoi d'un mail de test dès le lancement.")
+    print("💬 TEST : envoi d'un mail de test dès le lancement.", flush=True)
     envoyer_mail()
 
     while True:
