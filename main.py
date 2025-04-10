@@ -60,7 +60,8 @@ def check_disponibilite():
         return False, screenshot_path
 
 if __name__ == "__main__":
-    envoyer_mail("🚀 Bot Selenium lancé", "Le bot Selenium est en ligne et surveille les dossards.")
+    dispo, screenshot = check_disponibilite()
+    envoyer_mail("🚀 Bot Selenium lancé", "Le bot Selenium est en ligne et surveille les dossards.", screenshot)
 
     alert_sent = False
 
