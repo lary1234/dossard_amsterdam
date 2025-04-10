@@ -1,58 +1,74 @@
 import os
 import time
-import smtplib
 import threading
+import smtplib
 from email.message import EmailMessage
+from flask import Flask, send_file
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# Configuration des identifiants email via les variables d'environnement
-EMAIL_ADDRESS = os.environ['EMAIL_ADDRESS']
-EMAIL_PASSWORD  = os.environ['EMAIL_PASSWORD']
+#################################
+# CONFIGURATION
+#################################
+EMAIL_ADDRESS = os.environ.get('EMAIL_ADDRESS', 'ton.email@gmail.com')
+EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD', 'ton_mdp_application')
 
-# Chemin du fichier de capture (il sera mis à jour toutes les 2 sec)
+# URL à surveiller
+CHECK_URL = "https://atleta.cc/e/nhIV3rcY9oXV/resale"
+
+# Chemin du screenshot
 SCREENSHOT_PATH = "page_vue_par_le_bot.png"
 
-# Verrou pour synchroniser l'accès au driver Selenium
-driver_lock = threading.Lock()
+# Intervalle de capture (30 secondes)
+CAPTURE_INTERVAL = 30
 
+# Intervalle pour envoi d'email si un ticket est détecté (ici 60 secondes maximum)
+MAIL_INTERVAL = 60
+
+#################################
+# FONCTIONS UTILITAIRES
+#################################
 def envoyer_mail(subject, content, attachment_path=None):
-    print("📤 Envoi de mail :", subject, flush=True)
+    print(f"📤 Envoi de mail : {subject}", flush=True)
     msg = EmailMessage()
     msg['Subject'] = subject
     msg['From'] = EMAIL_ADDRESS
     msg['To'] = EMAIL_ADDRESS
     msg.set_content(content)
-    
+
     if attachment_path and os.path.exists(attachment_path):
         with open(attachment_path, 'rb') as f:
             file_data = f.read()
             msg.add_attachment(file_data, maintype='image', subtype='png', filename=os.path.basename(attachment_path))
-    
     try:
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
             smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
             smtp.send_message(msg)
         print("✅ Mail envoyé", flush=True)
     except Exception as e:
-        print("❌ Erreur mail :", e, flush=True)
+        print(f"❌ Erreur mail : {e}", flush=True)
 
-def setup_driver():
+def check_disponibilite():
+    # Configuration de Selenium en mode headless
     options = Options()
-    options.add_argument("--headless")  # Exécute sans interface graphique
+    options.add_argument("--headless")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--no-sandbox")
-    # Possibilité d'ajouter d'autres options ou préférences si nécessaire
+    
+    # On peut éventuellement ajouter ici des préférences pour les cookies
+    # Cependant, le site semble utiliser un composant custom, nous tenterons toujours le clic.
     
     driver = webdriver.Chrome(options=options)
     driver.set_window_size(1920, 3000)
-    driver.get("https://atleta.cc/e/nhIV3rcY9oXV/resale")
-    time.sleep(5)  # Attendre que la page se charge
+    driver.get(CHECK_URL)
     
-    # Attente explicite pour cliquer sur le bouton "Accepter"
+    # Attente de chargement de la page
+    time.sleep(5)
+
+    # ⏱️ Essai de clic explicite sur le bouton "Accepter"
     try:
         accept_button = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.XPATH, "//button[.//strong[contains(text(),'Accepter')]]"))
@@ -64,53 +80,68 @@ def setup_driver():
         )
         print("🍪 Bouton 'Accepter' a disparu, pop-up cookies enlevé.", flush=True)
     except Exception as e:
-        print("⚠️ Bouton 'Accepter' introuvable ou non cliquable :", e, flush=True)
+        print(f"⚠️ Bouton 'Accepter' introuvable ou non cliquable : {e}", flush=True)
     
-    return driver
-
-def screenshot_updater(driver):
-    """ Met à jour la capture d'écran toutes les 2 secondes. """
-    while True:
-        with driver_lock:
-            driver.save_screenshot(SCREENSHOT_PATH)
-        # Cette capture se fait toutes les 2 secondes
-        time.sleep(2)
-
-def check_ticket_availability(driver):
-    """ Vérifie la présence d'au moins un ticket visible via la classe 'ticket-card'. """
-    with driver_lock:
+    # Attendre quelques secondes supplémentaires pour que la page se stabilise (et éventuellement pour que le challenge Cloudflare se termine)
+    time.sleep(3)
+    
+    # Capture d'écran pour vérification
+    driver.save_screenshot(SCREENSHOT_PATH)
+    
+    # Ici on peut ajouter d'autres vérifications visuelles
+    # Par exemple, on cherche des éléments ayant la classe "ticket-card"
+    ticket_present = False
+    try:
         tickets = driver.find_elements(By.CLASS_NAME, "ticket-card")
-    if tickets and len(tickets) > 0:
-        print(f"🎯 {len(tickets)} ticket(s) détecté(s) !", flush=True)
-        return True
+        if tickets and len(tickets) > 0:
+            ticket_present = True
+            print(f"🎯 {len(tickets)} ticket(s) détecté(s) visuellement !", flush=True)
+        else:
+            print("⛔ Aucun ticket détecté (aucune carte trouvée)", flush=True)
+    except Exception as e:
+        print(f"⚠️ Erreur lors de la recherche des tickets : {e}", flush=True)
+    
+    driver.quit()
+    return ticket_present
+
+#################################
+# FLASK APP POUR VISUALISER LE SCREENSHOT
+#################################
+app = Flask(__name__)
+
+@app.route("/screenshot")
+def screenshot():
+    """Retourne la dernière capture d'écran."""
+    if os.path.exists(SCREENSHOT_PATH):
+        return send_file(SCREENSHOT_PATH, mimetype="image/png")
     else:
-        print("⛔ Aucun ticket détecté", flush=True)
-        return False
+        return "Aucune capture disponible.", 404
 
-def main():
-    global alert_sent
-    driver = setup_driver()
-    
-    # Démarrage du thread pour actualiser la capture d'écran toutes les 2 secondes
-    updater_thread = threading.Thread(target=screenshot_updater, args=(driver,), daemon=True)
-    updater_thread.start()
-    
-    # Envoi d'un mail de démarrage avec la capture d'écran actuelle
-    envoyer_mail("🚀 Bot lancé", "Le bot est actif et surveille la page.", SCREENSHOT_PATH)
-    
-    alert_sent = False
-    
-    # Boucle principale qui vérifie la disponibilité toutes les 60 secondes
+#################################
+# THREAD DE CAPTURE
+#################################
+def loop_capture():
+    last_ticket_found = False
+    last_mail_sent = 0
     while True:
-        available = check_ticket_availability(driver)
-        if available and not alert_sent:
-            envoyer_mail("🎟️ Dossard dispo", 
-                         "Un ticket semble être disponible sur https://atleta.cc/e/nhIV3rcY9oXV/resale", 
-                         SCREENSHOT_PATH)
-            alert_sent = True
-        elif not available and alert_sent:
-            alert_sent = False
-        time.sleep(60)
+        ticket_found = check_disponibilite()
+        if ticket_found and not last_ticket_found:
+            now = time.time()
+            if (now - last_mail_sent) > MAIL_INTERVAL:
+                envoyer_mail("🎟️ Dossard dispo", f"Un ticket est peut-être dispo sur {CHECK_URL}", SCREENSHOT_PATH)
+                last_mail_sent = now
+            last_ticket_found = True
+        elif not ticket_found and last_ticket_found:
+            last_ticket_found = False
+        time.sleep(CAPTURE_INTERVAL)
 
+#################################
+# LANCEMENT DE L'APP
+#################################
 if __name__ == "__main__":
-    main()
+    # Lancer le thread de capture
+    t = threading.Thread(target=loop_capture, daemon=True)
+    t.start()
+
+    # Lancer le serveur Flask sur le port 5000 pour avoir un URL public (si déployé sur Railway)
+    app.run(host="0.0.0.0", port=5000)
