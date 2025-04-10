@@ -32,42 +32,29 @@ def envoyer_mail(subject, content, attachment_path=None):
 
 def check_disponibilite():
     options = Options()
-    options.add_argument("--headless=new")
+    options.add_argument("--headless")  # Mode sans interface (headless)
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--no-sandbox")
+
+    # 🍪 Configuration pour forcer l'acceptation des cookies via Chrome
+    prefs = {
+        "profile.default_content_setting_values.cookies": 1,  # Permet les cookies
+        "profile.default_content_setting_values.notifications": 2  # Désactive les notifications
+    }
+    options.add_experimental_option("prefs", prefs)
 
     driver = webdriver.Chrome(options=options)
     driver.set_window_size(1920, 3000)
     driver.get("https://atleta.cc/e/nhIV3rcY9oXV/resale")
+
+    # On attend 5 secondes pour charger la page
     time.sleep(5)
 
-    # 🍪 Tentative de clic sur tous les boutons d'acceptation
-    try:
-        elements = driver.find_elements(By.XPATH, "//*[self::button or self::div or self::span]")
-        keywords = ["accepter", "accept", "ok", "j'accepte", "i agree"]
-
-        clicked = False
-        for el in elements:
-            txt = el.text.strip().lower()
-            if any(kw in txt for kw in keywords):
-                try:
-                    el.click()
-                    print(f"🍪 Clic sur bouton cookie avec texte : '{el.text}'", flush=True)
-                    time.sleep(2)
-                    clicked = True
-                    break
-                except:
-                    continue
-        if not clicked:
-            print("🔍 Aucun bouton cookie détecté ou cliquable", flush=True)
-    except Exception as e:
-        print("⚠️ Erreur lors de la détection du pop-up cookie :", e, flush=True)
-
-    # 📸 Capture
+    # 🖼️ Capture de l'écran pour vérifier ce que Selenium voit
     screenshot_path = "page_vue_par_le_bot.png"
     driver.save_screenshot(screenshot_path)
 
-    # 🔍 Détection de l'absence du message d'indisponibilité
+    # 🔍 Détection du message "Il n'y a actuellement aucun ticket à vendre"
     try:
         driver.find_element(By.XPATH, "//*[contains(text(), \"Il n'y a actuellement aucun ticket à vendre\")]")
         print("⛔ Message d'absence détecté → aucun ticket", flush=True)
@@ -80,7 +67,7 @@ def check_disponibilite():
 
 if __name__ == "__main__":
     dispo, screenshot = check_disponibilite()
-    envoyer_mail("🚀 Bot lancé (anti-cookie universel)", "Le bot est actif avec recherche automatique des boutons cookies.", screenshot)
+    envoyer_mail("🚀 Bot lancé avec cookies automatiques", "Le bot est actif et accepte les cookies automatiquement.", screenshot)
 
     alert_sent = False
 
