@@ -1,1 +1,1 @@
-Bot avec test de mail dès le lancement + logs améliorés.
+Bot Selenium headless pour Railway, vérifie les tickets Atleta.cc.
