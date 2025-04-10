@@ -41,14 +41,14 @@ def check_disponibilite():
     driver.get("https://atleta.cc/e/nhIV3rcY9oXV/resale")
     time.sleep(5)
 
+    # 🍪 Gérer le pop-up cookie
     try:
-    accept_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Accept')]")
-    accept_button.click()
-    print("🍪 Pop-up cookies accepté", flush=True)
-    time.sleep(1)  # attendre que la page s'adapte
-    
+        accept_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Accept')]")
+        accept_button.click()
+        print("🍪 Pop-up cookies accepté", flush=True)
+        time.sleep(1)
     except NoSuchElementException:
-    print("✅ Aucun pop-up cookies détecté", flush=True)
+        print("✅ Aucun pop-up cookies détecté", flush=True)
 
     screenshot_path = "page_vue_par_le_bot.png"
     driver.save_screenshot(screenshot_path)
