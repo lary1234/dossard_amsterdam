@@ -42,16 +42,26 @@ def check_disponibilite():
     driver.get("https://atleta.cc/e/nhIV3rcY9oXV/resale")
     time.sleep(5)
 
-    # 🍪 Gérer le pop-up cookie
+    # 🍪 Tentative de gestion d'un pop-up cookies via iframe
     try:
-        accept_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Accept')]")
-        accept_button.click()
-        print("🍪 Pop-up cookies accepté", flush=True)
-        time.sleep(1)
-    except NoSuchElementException:
-        print("✅ Aucun pop-up cookies détecté", flush=True)
+        print("🔍 Recherche d'une iframe contenant le bouton cookies...", flush=True)
+        WebDriverWait(driver, 5).until(lambda d: d.find_elements(By.TAG_NAME, "iframe"))
+        for iframe in driver.find_elements(By.TAG_NAME, "iframe"):
+            driver.switch_to.frame(iframe)
+            try:
+                accept_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Accept')]")
+                accept_button.click()
+                print("🍪 Pop-up cookies accepté dans l'iframe", flush=True)
+                time.sleep(1)
+                break
+            except NoSuchElementException:
+                driver.switch_to.default_content()
+                continue
+        driver.switch_to.default_content()
+    except Exception as e:
+        print("✅ Aucun pop-up cookies interactif trouvé ou erreur :", e, flush=True)
 
-    # ⏳ Attente réelle que le contenu se charge
+    # ⏳ Attente réelle du contenu
     screenshot_path = "page_vue_par_le_bot.png"
     try:
         print("⏳ Attente de la zone de tickets (max 10s)...", flush=True)
@@ -61,7 +71,6 @@ def check_disponibilite():
     except:
         print("⚠️ Temps d'attente dépassé — screenshot forcé", flush=True)
 
-    # 🖼️ Capture de la page réelle visible
     driver.save_screenshot(screenshot_path)
 
     try:
